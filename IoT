@@ -1,0 +1,89 @@
+#define BLYNK_TEMPLATE_ID "TMPL6_A0A6h_Z"
+#define BLYNK_TEMPLATE_NAME "ESD PROJECT"
+#define BLYNK_AUTH_TOKEN "z04KRmwmdaZe185kVrPq2cwAk4puSnSK"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+// Blynk credentials
+char ssid[] = "nuratikah's S22";  // Your WiFi SSID
+char pass[] = "shxg5736";         // Your WiFi Password
+
+// Sensor Pin Definitions
+#define MQ2_PIN 34           // Analog pin for MQ-2 (Smoke sensor)
+#define FLAME_PIN 26         // Digital pin for Flame sensor
+#define RED_LED_PIN 13       // Red LED pin
+#define GREEN_LED_PIN 12     // Green LED pin
+#define BUZZER_PIN 27        // Buzzer pin
+
+// Thresholds
+const int SMOKE_THRESHOLD = 400; // Smoke detection threshold (PPM)
+bool fireNotified = false;
+bool smokeNotified = false;
+
+void setup() {
+  Serial.begin(115200);       // Start Serial Monitor
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass); // Connect to Blynk
+
+  // Set Pin Modes
+  pinMode(MQ2_PIN, INPUT);
+  pinMode(FLAME_PIN, INPUT);
+  pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  // Set Default LED States
+  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(GREEN_LED_PIN, HIGH);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void loop() {
+  Blynk.run(); // Run Blynk
+
+  // Read sensor values
+  int smokeLevel = analogRead(MQ2_PIN);       // Get smoke level in PPM
+  int flameDetected = digitalRead(FLAME_PIN); // Fire presence (LOW = Fire detected)
+
+  // Debugging messages
+  Serial.print("Smoke Level (ppm): ");
+  Serial.println(smokeLevel);
+  Serial.print("Flame Detected: ");
+  Serial.println(flameDetected == LOW ? "Yes" : "No");
+
+  // Fire Detection Logic
+  if (flameDetected == LOW && !fireNotified) {
+    fireNotified = true; // Prevent repeated notifications
+
+    // Activate warning signals
+    digitalWrite(RED_LED_PIN, HIGH);
+    digitalWrite(GREEN_LED_PIN, LOW);
+    digitalWrite(BUZZER_PIN, HIGH);
+
+    // Send Fire Alert Notification
+    Blynk.logEvent("fire_alert", "🔥 Fire Detected! Take action immediately!");
+    Serial.println("🔥 Fire detected! Notification sent.");
+  } else if (flameDetected == HIGH) {
+    fireNotified = false; // Reset notification flag
+    digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, LOW);
+  }
+
+  // Smoke Detection Logic
+  if (smokeLevel > SMOKE_THRESHOLD) {
+    // Update smoke PPM value in Blynk app
+    Blynk.virtualWrite(V1, smokeLevel); // Send smoke level to Virtual Pin V1 (Gauge Widget)
+
+    if (!smokeNotified) {
+      smokeNotified = true; // Prevent repeated notifications
+      Blynk.logEvent("smoke_alert", "🚨 Smoke Detected! Check the environment.");
+      Serial.println("🚨 Smoke detected! Notification sent.");
+    }
+  } else {
+    smokeNotified = false; // Reset notification flag
+    Blynk.virtualWrite(V1, smokeLevel); // Update gauge with current smoke level
+  }
+
+  delay(1000); // Sampling delay (1 second)
+}
